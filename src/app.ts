@@ -2,30 +2,78 @@ import { ElementHandle, launch, Page } from 'puppeteer';
 import { stringify } from 'csv/lib/sync';
 import * as fs from 'fs';
 
-interface Store {
-    name: string
-    address: string;
-    genre: string
+/**
+ * 加盟店情報のオブジェクト
+ */
+interface Merchant {
+  /**
+   * 加盟店名
+   */
+  name: string
+
+  /**
+   * 加盟店の住所
+   * 一部加盟店では住所をGoogle Mapsに反映できない可能性あり
+   */
+  address: string;
+
+  /**
+   * 加盟店のジャンル
+   * ジャンル分けはジェフグルメカード公式サイトのジャンルをそのまま採用
+   */
+  genre: string
 }
+
+/**
+ * 都道府県名を取得する
+ *
+ * @param pref 都道府県のElementHandle
+ */
+const getPrefecturesName = async (pref: ElementHandle): Promise<string> => {
+  return await pref.$eval('input', input => input.getAttribute('data-label'));
+};
 
 /**
  * 現在のページ番号を取得する
  *
  * @param page Pageオブジェクト
  */
-const pickCurrentPageNumber = async (page: Page): Promise<number> => {
+const getNowPagination = async (page: Page): Promise<number> => {
   return await page.$eval('#search_result_pagination li.selected a', item => {
     return Number(item.textContent);
   });
 };
 
 /**
- * 次のページへ遷移する
- * @param page Pageオブジェクト
+ * 検索結果を次のページへ遷移する
+ *
+ * @param page
  */
-const clickNextPageButton = async (page: Page): Promise<void> => {
+const searchResultNextPageToTransition = async (page: Page): Promise<void> => {
   console.log('次のページへ遷移');
-  await page.click('#search_result_pagination li.next a');
+  await Promise.all([
+    page.click('#search_result_pagination li.next a'),
+    page.waitForSelector('#search_result_lists', { visible: true }),
+  ]);
+  await page.waitForTimeout(3000);
+};
+
+/**
+ * 全てのジャンルのElementHandleを返す
+ *
+ * @param page
+ */
+const getGenreElementHandles = async (page: Page): Promise<ElementHandle[]> => {
+  return await page.$$('#genre_list ul li');
+};
+
+/**
+ * ジャンルのElementHandleからジャンル名を取得する
+ *
+ * @param genreEl
+ */
+const getGenreName = async (genreEl: ElementHandle): Promise<string> => {
+  return await genreEl.$eval('input', input => input.getAttribute('data-label'));
 };
 
 /**
@@ -37,12 +85,12 @@ const hasNextPageButton = async (page: Page): Promise<boolean> => {
 };
 
 /**
- * 加盟店概要をStoreオブジェクトに変換する
+ * 加盟店概要をMerchantオブジェクトに変換する
  *
  * @param detailEl 加盟店概要のElementHandle
  * @param genre 加盟店のジャンル
  */
-const detailToStoreObj = async (detailEl: ElementHandle, genre: string): Promise<Store> => {
+const convertDetailToMerchantObj = async (detailEl: ElementHandle, genre: string): Promise<Merchant> => {
   const name = await detailEl.$eval('h4', h4 => h4.textContent);
   const address = await detailEl.$eval('.search_result_lists_address', addr => addr.textContent);
 
@@ -55,44 +103,40 @@ const detailToStoreObj = async (detailEl: ElementHandle, genre: string): Promise
  * @param page
  * @param genre
  */
-const pickStores = async (page: Page, genre: string): Promise<Store[]> => {
+const getMerchantFromSearchResult = async (page: Page, genre: string): Promise<Merchant[]> => {
   console.log('検索結果から加盟店を抽出');
-  const stores: Store[] = [];
+  const merchants: Merchant[] = [];
 
-  let pageNumber = await pickCurrentPageNumber(page);
+  let pageNumber = await getNowPagination(page);
   let hasNextPage = true;
   while (hasNextPage) {
-    pageNumber = await pickCurrentPageNumber(page);
+    pageNumber = await getNowPagination(page);
     console.log(`現在のページ番号: ${pageNumber}`);
 
     console.log('加盟店情報を抽出');
     const details = await page.$$('#search_result_lists .search_result_lists_details');
-    const pickedStores = await Promise.all<Store>(details.map(detail => detailToStoreObj(detail, genre)));
-    stores.push(...pickedStores);
+    const pickedMerchants = await Promise.all<Merchant>(details.map(detail => convertDetailToMerchantObj(detail, genre)));
+    merchants.push(...pickedMerchants);
 
     hasNextPage = await hasNextPageButton(page);
 
     if (hasNextPage) {
-      await Promise.all([
-        clickNextPageButton(page),
-        page.waitForSelector('#search_result_lists', { visible: true }),
-      ]);
-      await page.waitForTimeout(3000);
+      await searchResultNextPageToTransition(page);
     }
   }
 
-  return stores;
+  return merchants;
 };
 
 /**
- * Storeの配列をCSVに変換する
+ * Merchantの配列をCSVに変換する
  *
- * @param stores 加盟店の情報が入ったStoreオブジェクトの配列
+ * @param merchants 加盟店の情報が入ったMerchantオブジェクトの配列
  * @param prefName 加盟店の県名
  * @param genreName 加盟店のジャンル名
  */
-const createCSVFile = (stores: Store[], prefName: string, genreName: string) => {
-  const csvData = stringify(stores, { header: true });
+const saveMerchantsToCSVFile = (merchants: Merchant[], prefName: string, genreName: string) => {
+  const csvData = stringify(merchants, { header: true });
   const path = `./dist/${prefName}-${genreName}.csv`;
   console.log(`${path} を作成`);
   fs.writeFileSync(path, csvData);
@@ -105,18 +149,18 @@ const createCSVFile = (stores: Store[], prefName: string, genreName: string) => 
  * @param pref 都道府県のElementHandle
  */
 const createMaps = async (page: Page, pref: ElementHandle): Promise<void> => {
-  const prefStores: Store[] = [];
-  const prefName = await pref.$eval('input', input => input.getAttribute('data-label'));
-  console.log(`${prefName}の加盟店マップ作成を開始`);
+  const prefMerchants: Merchant[] = [];
+  const prefecturesName = await getPrefecturesName(pref);
+  console.log(`${prefecturesName}の加盟店マップ作成を開始`);
 
   await pref.$('a[href="javascript:;"]').then(el => el.click());
   await page.waitForTimeout(3000);
 
-  const genres = await page.$$('#genre_list ul li');
-  for (const genre of genres) {
-    const genreName = await genre.$eval('input', input => input.getAttribute('data-label'));
+  const genreHandles = await getGenreElementHandles(page);
+  for (const genreHandle of genreHandles) {
+    const genreName = await getGenreName(genreHandle);
     console.log(`ジャンル: ${genreName}`);
-    const genreSelect = await genre.$('a');
+    const genreSelect = await genreHandle.$('a');
     await genreSelect.click();
     await page.waitForTimeout(3000);
 
@@ -131,18 +175,18 @@ const createMaps = async (page: Page, pref: ElementHandle): Promise<void> => {
     await page.select('select[name="posts_per_page"]', '100');
     await page.waitForTimeout(3000);
 
-    const searchResult = await page.$eval('#search_result_text', el => el.textContent);
-    console.log(searchResult);
+    const searchResult = await page.$eval('#search_result_text', el => el.textContent.trim());
+    console.log(`検索結果: ${searchResult}`);
 
-    const stores = await pickStores(page, genreName);
-    prefStores.push(...stores);
+    const merchants = await getMerchantFromSearchResult(page, genreName);
+    prefMerchants.push(...merchants);
 
-    createCSVFile(stores, prefName, genreName);
+    saveMerchantsToCSVFile(merchants, prefecturesName, genreName);
 
     await genreSelect.click();
   }
 
-  createCSVFile(prefStores, prefName, 'all');
+  saveMerchantsToCSVFile(prefMerchants, prefecturesName, 'all');
 
   console.log('Next pref');
   await page.$('.area_city_list .common_search_nav a').then(el => el.click());
