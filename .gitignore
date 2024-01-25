@@ -1,5 +1,5 @@
 # dist
-/dist/**/*
+/dist/*
 !/dist/.gitkeep
 
 # Created by .ignore support plugin (hsz.mobi)

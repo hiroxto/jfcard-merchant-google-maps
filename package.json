@@ -1,5 +1,5 @@
 {
-  "name": "point-site-tools",
+  "name": "jfcard-merchant-google-maps",
   "version": "0.0.1",
   "description": "ジェフグルメカードの加盟店をスクレイピングして書き出す.",
   "author": "hiroxto",
@@ -8,20 +8,16 @@
   "scripts": {
     "start": "ts-node -r tsconfig-paths/register src/app.ts",
     "lint": "eslint --ext .js,.ts --ignore-path .gitignore .",
-    "lint:fix": "eslint --fix --ext .js,.ts --ignore-path .gitignore .",
-    "test": "jest"
+    "lint:fix": "eslint --fix --ext .js,.ts --ignore-path .gitignore ."
   },
   "devDependencies": {
     "@hiroxto/eslint-config": "^1.0.0",
-    "@types/jest": "26.0.20",
-    "@types/node": "14.14.32",
-    "@types/puppeteer": "5.4.3",
+    "@types/node": "^20.11.6",
     "csv": "^5.4.0",
     "eslint": "^7.32.0",
-    "puppeteer": "^10.4.0",
-    "puppeteer-core": "8.0.0",
-    "ts-node": "9.1.1",
-    "tsconfig-paths": "3.9.0",
-    "typescript": "4.2.3"
+    "puppeteer": "^21.9.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.3.3"
   }
 }
