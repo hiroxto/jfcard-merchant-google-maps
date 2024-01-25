@@ -152,7 +152,7 @@ const getMerchantFromSearchResult = async (page: Page, genre: string): Promise<M
  * @param genreName 加盟店のジャンル名
  */
 const saveMerchantsToCSVFile = (merchants: Merchant[], prefName: string, genreName: string) => {
-  const csvData = stringify(merchants, { header: true });
+  const csvData = stringify.default(merchants, { header: true });
   const path = `./dist/${prefName}-${genreName}.csv`;
   console.log(`${path} を作成`);
   fs.writeFileSync(path, csvData);
