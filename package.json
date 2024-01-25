@@ -8,12 +8,10 @@
   "scripts": {
     "start": "ts-node -r tsconfig-paths/register src/app.ts",
     "lint": "eslint --ext .js,.ts --ignore-path .gitignore .",
-    "lint:fix": "eslint --fix --ext .js,.ts --ignore-path .gitignore .",
-    "test": "jest"
+    "lint:fix": "eslint --fix --ext .js,.ts --ignore-path .gitignore ."
   },
   "devDependencies": {
     "@hiroxto/eslint-config": "^1.0.0",
-    "@types/jest": "26.0.20",
     "@types/node": "14.14.32",
     "@types/puppeteer": "5.4.3",
     "csv": "^5.4.0",
