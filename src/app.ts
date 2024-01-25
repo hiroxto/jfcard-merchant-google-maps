@@ -30,7 +30,12 @@ interface Merchant {
  * @param pref 都道府県のElementHandle
  */
 const getPrefecturesName = async (pref: ElementHandle): Promise<string> => {
-  return await pref.$eval('input', input => input.getAttribute('data-label'));
+  const prefName = await pref.$eval('input', input => input.getAttribute('data-label'));
+  if (prefName === null) {
+    throw new Error('都道府県名の取得に失敗しました。');
+  }
+
+  return prefName;
 };
 
 /**
@@ -73,7 +78,12 @@ const getGenreElementHandles = async (page: Page): Promise<ElementHandle[]> => {
  * @param genreEl
  */
 const getGenreName = async (genreEl: ElementHandle): Promise<string> => {
-  return await genreEl.$eval('input', input => input.getAttribute('data-label'));
+  const genreName = await genreEl.$eval('input', input => input.getAttribute('data-label'));
+  if (genreName === null) {
+    throw new Error('ジャンル名の取得に失敗しました。');
+  }
+
+  return genreName;
 };
 
 /**
@@ -92,7 +102,13 @@ const hasNextPageButton = async (page: Page): Promise<boolean> => {
  */
 const convertDetailToMerchantObj = async (detailEl: ElementHandle, genre: string): Promise<Merchant> => {
   const name = await detailEl.$eval('h4', h4 => h4.textContent);
+  if (name === null) {
+    throw new Error('加盟店名の取得に失敗しました。');
+  }
   const address = await detailEl.$eval('.search_result_lists_address', addr => addr.textContent);
+  if (address === null) {
+    throw new Error('住所の取得に失敗しました。');
+  }
 
   return { name, address, genre };
 };
@@ -153,7 +169,15 @@ const createMaps = async (page: Page, pref: ElementHandle): Promise<void> => {
   const prefecturesName = await getPrefecturesName(pref);
   console.log(`${prefecturesName}の加盟店マップ作成を開始`);
 
-  await pref.$('a[href="javascript:;"]').then(el => el.click());
+  await pref.$('a[href="javascript:;"]')
+    .then((el) => {
+      if (el === null) {
+        throw new Error('');
+      }
+
+      return el;
+    })
+    .then(el => el.click());
   await page.waitForTimeout(3000);
 
   const genreHandles = await getGenreElementHandles(page);
@@ -161,6 +185,9 @@ const createMaps = async (page: Page, pref: ElementHandle): Promise<void> => {
     const genreName = await getGenreName(genreHandle);
     console.log(`ジャンル: ${genreName}`);
     const genreSelect = await genreHandle.$('a');
+    if (genreSelect === null) {
+      throw new Error('ジャンル要素の取得に失敗しました。');
+    }
     await genreSelect.click();
     await page.waitForTimeout(3000);
 
@@ -175,7 +202,13 @@ const createMaps = async (page: Page, pref: ElementHandle): Promise<void> => {
     await page.select('select[name="posts_per_page"]', '100');
     await page.waitForTimeout(3000);
 
-    const searchResult = await page.$eval('#search_result_text', el => el.textContent.trim());
+    const searchResult = await page.$eval('#search_result_text', (el) => {
+      if (el === null || el.textContent === null) {
+        throw new Error('検索結果の取得に失敗。');
+      }
+
+      return el.textContent.trim();
+    });
     console.log(`検索結果: ${searchResult}`);
 
     const merchants = await getMerchantFromSearchResult(page, genreName);
@@ -189,7 +222,11 @@ const createMaps = async (page: Page, pref: ElementHandle): Promise<void> => {
   saveMerchantsToCSVFile(prefMerchants, prefecturesName, 'all');
 
   console.log('Next pref');
-  await page.$('.area_city_list .common_search_nav a').then(el => el.click());
+  const nextPrefLink = await page.$('.area_city_list .common_search_nav a');
+  if (nextPrefLink === null) {
+    throw new Error('次の都道府県のリンクの取得に失敗しました。');
+  }
+  await nextPrefLink.click();
 };
 
 const main = async (): Promise<void> => {
